@@ -13,6 +13,11 @@ import Value
 evalExpr :: StateT -> Expression -> StateTransformer Value
 evalExpr env (VarRef (Id id)) = stateLookup env id
 evalExpr env (IntLit int) = return $ Int int
+evalExpr env (PrefixExpr PrefixMinus expr) = do
+    exprEval <- evalExpr env expr
+    case exprEval of
+        (Int int) -> return $ Int (-int)
+        _ -> return $ Error $ "Invalid use of prefix minus"
 evalExpr env (InfixExpr op expr1 expr2) = do
     v1 <- evalExpr env expr1
     v2 <- evalExpr env expr2
