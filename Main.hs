@@ -73,49 +73,31 @@ evalStmt env (ForStmt NoInit expr1 expr2 stmt) = do
                 evalExpr env e2
                 evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
             error@(Error _) -> return error
-evalStmt env (ForStmt (VarInit listVarDecl) expr1 expr2 stmt) = do
-    evalStmt env (VarDeclStmt listVarDecl)
-    let e1 = case expr1 of
-            (Just expr) -> expr
-            (Nothing) -> NullLit
-        e2 = case expr2 of
-            (Just expr) -> expr
-            (Nothing) -> NullLit
+evalStmt env (ForStmt initt expr1 expr2 stmt) = do
+    let stmtIni = case initt of
+            (VarInit listVarDecl) -> (VarDeclStmt listVarDecl)
+            (ExprInit expr) -> (ExprStmt expr)
         in do
-        condition <- evalExpr env e1
-        case condition of
-            (Bool cond) -> if (cond) then do
-                evalStmt env stmt
-                evalExpr env e2
-                evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
-                else return Nil
-            (Nil) -> do
-                evalStmt env stmt
-                evalExpr env e2
-                evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
-            error@(Error _) -> return error
-evalStmt env (ForStmt (ExprInit expr) expr1 expr2 stmt) = do
-    evalExpr env expr
-    let e1 = case expr1 of
-            (Just expr) -> expr
-            (Nothing) -> NullLit
-        e2 = case expr2 of
-            (Just expr) -> expr
-            (Nothing) -> NullLit
-        in do
-        condition <- evalExpr env e1
-        case condition of
-            (Bool cond) -> if (cond) then do
-                evalStmt env stmt
-                evalExpr env e2
-                evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
-                else return Nil
-            (Nil) -> do
-                evalStmt env stmt
-                evalExpr env e2
-                evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
-            error@(Error _) -> return error
--- TODO: tentar reduzir os últimos dois tipos de laço na função evalstmt
+        evalStmt env stmtIni
+        let e1 = case expr1 of
+                (Just expr) -> expr
+                (Nothing) -> NullLit
+            e2 = case expr2 of
+                (Just expr) -> expr
+                (Nothing) -> NullLit
+            in do
+            condition <- evalExpr env e1
+            case condition of
+                (Bool cond) -> if (cond) then do
+                    evalStmt env stmt
+                    evalExpr env e2
+                    evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
+                    else return Nil
+                (Nil) -> do
+                    evalStmt env stmt
+                    evalExpr env e2
+                    evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
+                error@(Error _) -> return error
 
 -- Do not touch this one :)
 evaluate :: StateT -> [Statement] -> StateTransformer Value
