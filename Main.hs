@@ -32,6 +32,14 @@ evalExpr env (AssignExpr OpAssign (LVar var) expr) = do
         _ -> do
             e <- evalExpr env expr
             setVar var e
+evalExpr env (UnaryAssignExpr inc (LVar var)) = do
+    let op = case inc of
+            (PrefixInc) -> OpAdd
+            (PrefixDec) -> OpSub
+        in
+        evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr op (VarRef (Id var)) (IntLit 1)))
+-- TODO(gbg): incremento e decremento pós-fixados
+
 
 evalStmt :: StateT -> Statement -> StateTransformer Value
 evalStmt env EmptyStmt = return Nil
