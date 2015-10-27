@@ -58,9 +58,14 @@ evalStmt env (IfStmt expr ifBlock elseBlock) = do
         (Bool cond) -> if (cond) then (evalStmt env ifBlock) else (evalStmt env elseBlock)
         error@(Error _) -> return error
 evalStmt env (BlockStmt []) = return Nil
+evalStmt env (BlockStmt ((BreakStmt Nothing):xs)) = return Break
 evalStmt env (BlockStmt (x:xs)) = do
-    evalStmt env x
-    evalStmt env (BlockStmt xs)
+    ret <- evalStmt env x
+    let r = case ret of
+            (Break) -> True
+            _ -> False
+        in do
+        if (r) then (return Break) else evalStmt env (BlockStmt xs)
 evalStmt env (ForStmt NoInit expr1 expr2 stmt) = do
     let e1 = case expr1 of
             (Just expr) -> expr
@@ -97,10 +102,16 @@ evalStmt env (ForStmt initt expr1 expr2 stmt) = do
             condition <- evalExpr env e1
             case condition of
                 (Bool cond) -> if (cond) then do
-                    evalStmt env stmt
-                    evalExpr env e2
-                    evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
-                    else return Nil
+                    ret <- evalStmt env stmt
+                    let r = case ret of
+                            (Break) -> False
+                            _ -> True
+                        in do
+                        if (r) then do
+                            evalExpr env e2
+                            evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
+                            else return Nil
+                        else return Nil
                 (Nil) -> do
                     evalStmt env stmt
                     evalExpr env e2
