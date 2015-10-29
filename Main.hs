@@ -39,6 +39,7 @@ evalExpr env (UnaryAssignExpr inc (LVar var)) = do
         in
         evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr op (VarRef (Id var)) (IntLit 1)))
 -- TODO(gbg): incremento e decremento pós-fixados
+-- TODO(gbg): chamada de funções
 
 
 evalStmt :: StateT -> Statement -> StateTransformer Value
@@ -117,6 +118,16 @@ evalStmt env (ForStmt initt expr1 expr2 stmt) = do
                     evalExpr env e2
                     evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
                 error@(Error _) -> return error
+evalStmt env (ReturnStmt expression) = do
+    case expression of
+        (Nothing) -> return Nil
+        (Just expr) -> do
+            exprEval <- evalExpr env expr
+            return exprEval 
+evalStmt env (FunctionStmt name args body) = do
+    funcDecl env (name, args, body)
+
+
 
 -- Do not touch this one :)
 evaluate :: StateT -> [Statement] -> StateTransformer Value
@@ -169,6 +180,13 @@ stateLookup env var = ST $ \s ->
         id
         (Map.lookup var (union s env)),
     s)
+
+funcDecl :: StateT -> (Id, [Id], [Statement]) -> StateTransformer Value
+funcDecl env ((Id id), args, stmts) = do
+    setFunc id (Function (Id id) args stmts)
+
+setFunc :: String -> Value -> StateTransformer Value
+setFunc name desc = ST $ \s -> (desc, insert name desc s)
 
 varDecl :: StateT -> VarDecl -> StateTransformer Value
 varDecl env (VarDecl (Id id) maybeExpr) = do

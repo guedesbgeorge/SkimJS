@@ -1,7 +1,6 @@
-var x = -1, y = 10, i;
-
-for(i = 0; i < 5; ++i) {
-	y = y + 1;
+function soma(a, b) {
+	return (a + b);
 }
 
-x + y;
+var x = 1;
+x;
