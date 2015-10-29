@@ -1,6 +1,10 @@
-function soma(a, b) {
-	return (a + b);
+function fat(a) {
+	if(a == 1) {
+		return 1;
+	} else {
+		return (b*(fat(a - 1)));
+	}
 }
 
-var x = 1;
-x;
+var z = fat(5);
+z;

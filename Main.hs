@@ -39,8 +39,15 @@ evalExpr env (UnaryAssignExpr inc (LVar var)) = do
         in
         evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr op (VarRef (Id var)) (IntLit 1)))
 -- TODO(gbg): incremento e decremento pós-fixados
--- TODO(gbg): chamada de funções
+evalExpr env (CallExpr nameExp args) = do
+    (Function name argsName stmts) <- evalExpr env (nameExp)
+    evalStmt env (VarDeclStmt (listVarDecl argsName args))
+    (Return val) <- evalStmt env (BlockStmt stmts)
+    return val
 
+listVarDecl :: [Id] -> [Expression] -> [VarDecl]
+listVarDecl (x:xs) (y:ys) = (VarDecl x (Just y)):(listVarDecl xs ys)
+listVarDecl [] [] = []
 
 evalStmt :: StateT -> Statement -> StateTransformer Value
 evalStmt env EmptyStmt = return Nil
@@ -51,22 +58,29 @@ evalStmt env (ExprStmt expr) = evalExpr env expr
 evalStmt env (IfSingleStmt expr ifBlock) = do
     condition <- evalExpr env expr
     case condition of
-        (Bool cond) -> if (cond) then (evalStmt env ifBlock) else (return Nil)
+        (Bool cond) -> if (cond) then do
+            ret <- (evalStmt env ifBlock)
+            return ret
+             else (return Nil)
         error@(Error _) -> return error
 evalStmt env (IfStmt expr ifBlock elseBlock) = do
     condition <- evalExpr env expr
     case condition of
-        (Bool cond) -> if (cond) then (evalStmt env ifBlock) else (evalStmt env elseBlock)
+        (Bool cond) -> if (cond) then do
+        ret <- (evalStmt env ifBlock)
+        return ret
+         else do 
+            ret <- (evalStmt env elseBlock)
+            return ret
         error@(Error _) -> return error
 evalStmt env (BlockStmt []) = return Nil
 evalStmt env (BlockStmt ((BreakStmt Nothing):xs)) = return Break
 evalStmt env (BlockStmt (x:xs)) = do
     ret <- evalStmt env x
-    let r = case ret of
-            (Break) -> True
-            _ -> False
-        in do
-        if (r) then (return Break) else evalStmt env (BlockStmt xs)
+    case ret of
+        (Return val) -> return (Return val)
+        (Break) -> return Break
+        _ -> evalStmt env (BlockStmt xs)
 evalStmt env (ForStmt NoInit expr1 expr2 stmt) = do
     let e1 = case expr1 of
             (Just expr) -> expr
@@ -78,14 +92,22 @@ evalStmt env (ForStmt NoInit expr1 expr2 stmt) = do
         condition <- evalExpr env e1
         case condition of
             (Bool cond) -> if (cond) then do
-                evalStmt env stmt
-                evalExpr env e2
-                evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
+                ret <- evalStmt env stmt
+                case ret of
+                    (Return val) -> return (Return val)
+                    (Break) -> return Nil
+                    _ -> do
+                        evalExpr env e2
+                        evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
                 else return Nil
             (Nil) -> do
-                evalStmt env stmt
-                evalExpr env e2
-                evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
+                ret <- evalStmt env stmt
+                case ret of
+                    (Return val) -> return (Return val)
+                    (Break) -> return Nil
+                    _ -> do
+                        evalExpr env e2
+                        evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
             error@(Error _) -> return error
 evalStmt env (ForStmt initt expr1 expr2 stmt) = do
     let stmtIni = case initt of
@@ -104,28 +126,30 @@ evalStmt env (ForStmt initt expr1 expr2 stmt) = do
             case condition of
                 (Bool cond) -> if (cond) then do
                     ret <- evalStmt env stmt
-                    let r = case ret of
-                            (Break) -> False
-                            _ -> True
-                        in do
-                        if (r) then do
+                    case ret of
+                        Break -> return Nil
+                        (Return val) -> return (Return val)
+                        _ -> do
                             evalExpr env e2
                             evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
-                            else return Nil
                         else return Nil
                 (Nil) -> do
-                    evalStmt env stmt
-                    evalExpr env e2
-                    evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
+                    ret <- evalStmt env stmt
+                    case ret of
+                        (Return val) -> return (Return val)
+                        Break -> return Nil
+                        _ -> do
+                            evalExpr env e2
+                            evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
                 error@(Error _) -> return error
+-- TODO(gbg): Simplificar código do laço for
 evalStmt env (ReturnStmt expression) = do
     case expression of
-        (Nothing) -> return Nil
+        (Nothing) -> return (Return Nil)
         (Just expr) -> do
             exprEval <- evalExpr env expr
-            return exprEval 
-evalStmt env (FunctionStmt name args body) = do
-    funcDecl env (name, args, body)
+            return (Return exprEval)
+evalStmt env (FunctionStmt name args body) = funcDecl env (name, args, body)
 
 
 

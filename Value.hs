@@ -10,6 +10,7 @@ data Value = Bool Bool
     | Nil
     | Break
     | Function Id [Id] [Statement]
+    | Return Value
 
 --
 -- Pretty Printer
