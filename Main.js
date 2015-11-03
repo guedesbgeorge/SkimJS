@@ -2,7 +2,7 @@ function fat(a) {
 	if(a == 1) {
 		return 1;
 	} else {
-		return (b*(fat(a - 1)));
+		return (a*(fat(a - 1)));
 	}
 }
 
