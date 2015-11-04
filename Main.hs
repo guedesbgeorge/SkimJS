@@ -40,10 +40,17 @@ evalExpr env (UnaryAssignExpr inc (LVar var)) = do
         evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr op (VarRef (Id var)) (IntLit 1)))
 -- TODO(gbg): incremento e decremento pós-fixados
 evalExpr env (CallExpr nameExp args) = do
-    (Function name argsName stmts) <- evalExpr env (nameExp)
-    evalStmt env (VarDeclStmt (listVarDecl argsName args))
-    (Return val) <- evalStmt env (BlockStmt stmts)
-    return val
+    res <- evalExpr env (nameExp)
+    case res of
+        (Error _) -> error "deu merda"
+        (Function name argsName stmts) -> ST $ \s -> 
+            let (ST f) = mapM (evalExpr env) args
+                (params, _) = f s
+                parameters = fromList (zip (Prelude.map (\(Id a) -> a) argsName) (params))
+                local = union parameters s
+                (ST g) = evalStmt env (BlockStmt stmts)
+                (Return val, finalState) = g local
+            in (val, union (intersection (difference finalState parameters) s) s)
 
 listVarDecl :: [Id] -> [Expression] -> [VarDecl]
 listVarDecl (x:xs) (y:ys) = (VarDecl x (Just y)):(listVarDecl xs ys)
