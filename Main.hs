@@ -14,6 +14,13 @@ evalExpr :: StateT -> Expression -> StateTransformer Value
 evalExpr env NullLit = return Nil
 evalExpr env (VarRef (Id id)) = stateLookup env id
 evalExpr env (IntLit int) = return $ Int int
+evalExpr env (ArrayLit []) = return (List [])
+evalExpr env (ArrayLit (x:xs)) = do
+    hd <- evalExpr env x
+    tl <- evalExpr env (ArrayLit xs)
+    case tl of
+        (List []) -> return (List [hd])
+        _ -> return (List ([hd]++[tl]))
 evalExpr env (PrefixExpr PrefixMinus expr) = do
     exprEval <- evalExpr env expr
     case exprEval of
@@ -42,7 +49,7 @@ evalExpr env (UnaryAssignExpr inc (LVar var)) = do
 evalExpr env (CallExpr nameExp args) = do
     res <- evalExpr env (nameExp)
     case res of
-        (Error _) -> error "deu merda"
+        (Error _) -> error ("Function not declared: " ++ (show nameExp))
         (Function name argsName stmts) -> ST $ \s -> 
             let (ST f) = mapM (evalExpr env) args
                 (params, _) = f s

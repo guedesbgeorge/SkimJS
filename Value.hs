@@ -11,6 +11,7 @@ data Value = Bool Bool
     | Break
     | Function Id [Id] [Statement]
     | Return Value
+    | List [Value]
 
 --
 -- Pretty Printer
