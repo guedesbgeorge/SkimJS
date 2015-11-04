@@ -17,10 +17,10 @@ evalExpr env (IntLit int) = return $ Int int
 evalExpr env (ArrayLit []) = return (List [])
 evalExpr env (ArrayLit (x:xs)) = do
     hd <- evalExpr env x
-    tl <- evalExpr env (ArrayLit xs)
+    (List tl) <- evalExpr env (ArrayLit xs)
     case tl of
-        (List []) -> return (List [hd])
-        _ -> return (List ([hd]++[tl]))
+        [] -> return (List (hd:[]))
+        _ -> return (List ([hd]++tl))
 evalExpr env (PrefixExpr PrefixMinus expr) = do
     exprEval <- evalExpr env expr
     case exprEval of
@@ -188,6 +188,14 @@ infixOp env OpLEq  (Int  v1) (Int  v2) = return $ Bool $ v1 <= v2
 infixOp env OpGT   (Int  v1) (Int  v2) = return $ Bool $ v1 > v2
 infixOp env OpGEq  (Int  v1) (Int  v2) = return $ Bool $ v1 >= v2
 infixOp env OpEq   (Int  v1) (Int  v2) = return $ Bool $ v1 == v2
+infixOp env OpEq   (List []) (List []) = return $ Bool $ True
+infixOp env OpEq   (List []) (List _) = return $ Bool $ False
+infixOp env OpEq   (List _) (List []) = return $ Bool $ False
+infixOp env OpEq   (List v1) (List v2) = do 
+    b1 <- infixOp env OpEq (head v1) (head v2)
+    b2 <- infixOp env OpEq (List (tail v1)) (List (tail v2))
+    ans <- (infixOp env OpLAnd b1 b2)
+    return ans
 infixOp env OpNEq  (Bool v1) (Bool v2) = return $ Bool $ v1 /= v2
 infixOp env OpLAnd (Bool v1) (Bool v2) = return $ Bool $ v1 && v2
 infixOp env OpLOr  (Bool v1) (Bool v2) = return $ Bool $ v1 || v2

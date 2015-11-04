@@ -26,6 +26,7 @@ instance Show Value where
   show (Error str) = "Error: " ++ str
   show Nil = ""
   show (Function (Id name) args body) = show args
+  show (List list) = show list
   
 -- This function could be replaced by (unwords.map show). The unwords
 -- function takes a list of String values and uses them to build a 
