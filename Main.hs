@@ -50,6 +50,20 @@ evalExpr env (CallExpr nameExp args) = do
     res <- evalExpr env (nameExp)
     case res of
         (Error _) -> error ("Function not declared: " ++ (show nameExp))
+        (Function (Id "head") _ _) -> do
+            list <- evalExpr env (head args)
+            case list of
+                (List []) -> error ("Empty list.")
+                (List (x:xs)) -> return x
+        (Function (Id "tail") _ _) -> do
+            list <- evalExpr env (head args)
+            case list of
+                (List []) -> error ("Empty list.")
+                (List (x:xs)) -> return (List xs)
+        (Function (Id "concat") _ _) -> do
+            (List list1) <- evalExpr env (head args)
+            (List list2) <- evalExpr env (head (tail args))
+            return (List (list1++list2))
         (Function name argsName stmts) -> ST $ \s -> 
             let (ST f) = mapM (evalExpr env) args
                 (params, _) = f s
@@ -217,7 +231,8 @@ infixOp env op v1 (Var x) = do
 --
 
 environment :: Map String Value
-environment = empty
+environment = 
+    insert "concat" (Function (Id "concat") [(Id "list1"), (Id "list2")] []) $ insert "tail" (Function (Id "tail") [Id "list"] []) $ insert "head" (Function (Id "head") [Id "list"] []) empty
 
 stateLookup :: StateT -> String -> StateTransformer Value
 stateLookup env var = ST $ \s ->
