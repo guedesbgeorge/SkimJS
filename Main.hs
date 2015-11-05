@@ -33,8 +33,11 @@ evalExpr env (InfixExpr op expr1 expr2) = do
 evalExpr env (AssignExpr OpAssign (LVar var) expr) = do
     v <- stateLookup env var
     case v of
-        -- Variable not defined :(
-        (Error _) -> return $ Error $ (show var) ++ " not defined"
+        -- Variable not defined :( we'll create it!
+        (Error _) -> do
+            evalStmt env (VarDeclStmt [(VarDecl (Id var) (Nothing))])
+            e <- evalExpr env expr
+            setVar var e
         -- Variable defined, let's set its value
         _ -> do
             e <- evalExpr env expr
@@ -66,12 +69,28 @@ evalExpr env (CallExpr nameExp args) = do
             return (List (list1++list2))
         (Function name argsName stmts) -> ST $ \s -> 
             let (ST f) = mapM (evalExpr env) args
+                (ST x) = aux env (BlockStmt stmts)
+                (_, automaticGlob) = x s
                 (params, _) = f s
                 parameters = fromList (zip (Prelude.map (\(Id a) -> a) argsName) (params))
                 local = union parameters s
                 (ST g) = evalStmt env (BlockStmt stmts)
                 (Return val, finalState) = g local
-            in (val, union (intersection (difference finalState parameters) s) s)
+            in (val, union (intersection (difference finalState parameters) automaticGlob) automaticGlob)
+
+aux :: StateT -> Statement -> StateTransformer Value
+aux env (BlockStmt []) = return Nil
+aux env (BlockStmt ((ExprStmt (AssignExpr OpAssign (LVar var) expr)):xs)) = do
+    v <- stateLookup env var
+    case v of
+    -- Variable not defined :( we'll create it!
+        (Error _) -> do
+            evalStmt env (VarDeclStmt [(VarDecl (Id var) (Nothing))])
+            e <- evalExpr env expr
+            setVar var e
+            aux env (BlockStmt xs)
+        _ -> aux env (BlockStmt xs)
+aux env (BlockStmt (x:xs)) = aux env (BlockStmt xs)
 
 listVarDecl :: [Id] -> [Expression] -> [VarDecl]
 listVarDecl (x:xs) (y:ys) = (VarDecl x (Just y)):(listVarDecl xs ys)
