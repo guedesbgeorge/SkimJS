@@ -53,11 +53,11 @@ evalExpr env (UnaryAssignExpr inc (LVar var)) = do
         (PrefixInc) -> evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr OpAdd (VarRef (Id var)) (IntLit 1)))
         (PrefixDec) -> evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr OpSub (VarRef (Id var)) (IntLit 1)))
 -- Evaluating function calls.
--- TODO(gbg): organizar ideias.
 evalExpr env (CallExpr nameExp args) = do
     res <- evalExpr env (nameExp)
     case res of
         (Error _) -> error ("Function not declared: " ++ (show nameExp))
+        -- Predefined functions head, tail and concat.
         (Function (Id "head") _ _) -> do
             list <- evalExpr env (head args)
             case list of
@@ -75,10 +75,10 @@ evalExpr env (CallExpr nameExp args) = do
                     (List list) <- evalExpr env x
                     (List fim) <- evalExpr env (CallExpr nameExp xs)
                     return (List (list++fim))
-
+        -- Executing the function
         (Function name argsName stmts) -> ST $ \s -> 
             let (ST f) = mapM (evalExpr env) args
-                (ST x) = aux env (BlockStmt stmts)
+                (ST x) = automaticGlobalAux env (BlockStmt stmts)
                 (_, automaticGlob) = x s
                 (params, _) = f s
                 parameters = fromList (zip (Prelude.map (\(Id a) -> a) argsName) (params))
@@ -87,22 +87,34 @@ evalExpr env (CallExpr nameExp args) = do
                 (val, finalState) = g local
             in do 
                 case val of
-                    (Return ret) ->(ret, union (intersection (difference finalState parameters) automaticGlob) automaticGlob)
+                    (Return ret) ->(ret, union (intersection (difference finalState parameters) (intersection finalState automaticGlob)) (intersection finalState automaticGlob))
                     _ -> (val, union (intersection (difference finalState parameters) automaticGlob) automaticGlob)
 
-aux :: StateT -> Statement -> StateTransformer Value
-aux env (BlockStmt []) = return Nil
-aux env (BlockStmt ((ExprStmt (AssignExpr OpAssign (LVar var) expr)):xs)) = do
-    v <- stateLookup env var
-    case v of
-    -- Variable not defined :( we'll create it!
-        (Error _) -> do
-            evalStmt env (VarDeclStmt [(VarDecl (Id var) (Nothing))])
-            e <- evalExpr env expr
-            setVar var e
-            aux env (BlockStmt xs)
-        _ -> aux env (BlockStmt xs)
-aux env (BlockStmt (x:xs)) = aux env (BlockStmt xs)
+-- Auxiliary function to get automatic global variables
+automaticGlobalAux :: StateT -> Statement -> StateTransformer Value
+automaticGlobalAux env (BlockStmt []) = return Nil
+automaticGlobalAux env (BlockStmt (x:xs)) = do
+    case x of
+        (ExprStmt (AssignExpr OpAssign (LVar var) expr)) -> do
+            v <- stateLookup env var
+            case v of
+                (Error _) -> do
+                    evalStmt env (VarDeclStmt [(VarDecl (Id var) (Nothing))])
+                    e <- evalExpr env expr
+                    setVar var e
+                    automaticGlobalAux env (BlockStmt xs)
+                _ -> automaticGlobalAux env (BlockStmt xs)
+        (IfStmt _ b1 b2) -> do
+            automaticGlobalAux env b1
+            automaticGlobalAux env b2 
+            automaticGlobalAux env (BlockStmt xs)
+        (IfSingleStmt _ b) -> do
+            automaticGlobalAux env b
+            automaticGlobalAux env (BlockStmt xs)
+        (ForStmt _ _ _ b) -> do
+            automaticGlobalAux env b
+            automaticGlobalAux env (BlockStmt xs)
+        _ -> automaticGlobalAux env (BlockStmt xs)
 
 listVarDecl :: [Id] -> [Expression] -> [VarDecl]
 listVarDecl (x:xs) (y:ys) = (VarDecl x (Just y)):(listVarDecl xs ys)
