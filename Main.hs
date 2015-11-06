@@ -52,6 +52,7 @@ evalExpr env (UnaryAssignExpr inc (LVar var)) = do
         (PrefixInc) -> evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr OpAdd (VarRef (Id var)) (IntLit 1)))
         (PrefixDec) -> evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr OpSub (VarRef (Id var)) (IntLit 1)))
 -- Evaluating function calls.
+-- TODO(gbg): organizar ideias.
 evalExpr env (CallExpr nameExp args) = do
     res <- evalExpr env (nameExp)
     case res of
@@ -67,9 +68,13 @@ evalExpr env (CallExpr nameExp args) = do
                 (List []) -> error ("Empty list.")
                 (List (x:xs)) -> return (List xs)
         (Function (Id "concat") _ _) -> do
-            (List list1) <- evalExpr env (head args)
-            (List list2) <- evalExpr env (head (tail args))
-            return (List (list1++list2))
+            case args of
+                [] -> return (List [])
+                (x:xs) -> do
+                    (List list) <- evalExpr env x
+                    (List fim) <- evalExpr env (CallExpr nameExp xs)
+                    return (List (list++fim))
+
         (Function name argsName stmts) -> ST $ \s -> 
             let (ST f) = mapM (evalExpr env) args
                 (ST x) = aux env (BlockStmt stmts)
