@@ -1,5 +1,4 @@
 function len(list) {
-	c = 1;
 	if (list == []) {
 		return 0;
 	} else {
@@ -7,10 +6,9 @@ function len(list) {
 	}
 }
 
-var b = [1, 2, 3, 4];
-var c = [5, 6];
-var g = concat(c, tail(b));
-// g = [5, 6, 2, 3, 4]
+var a = [1, 2, 3, 4];
+var b = [5, 6];
+var c = concat(a, b);
 
-var x = len(g) + c;
-x;
+var d = len(c);
+d;

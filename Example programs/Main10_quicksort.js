@@ -30,6 +30,6 @@ function quicksort(list) {
 	}
 }
 
-var desord = [10, 5, 6, 1, 1, -3];
+var desord = [10, 1, 5, 4, 4, -3, 7, 8];
 var ord = quicksort(desord);
 ord;

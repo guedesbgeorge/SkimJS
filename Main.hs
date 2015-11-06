@@ -13,6 +13,7 @@ import Value
 evalExpr :: StateT -> Expression -> StateTransformer Value
 evalExpr env NullLit = return Nil
 evalExpr env (VarRef (Id id)) = stateLookup env id
+evalExpr env (StringLit str) = return (String str)
 evalExpr env (IntLit int) = return $ Int int
 -- Evaluating List
 evalExpr env (ArrayLit list) = do
@@ -83,8 +84,11 @@ evalExpr env (CallExpr nameExp args) = do
                 parameters = fromList (zip (Prelude.map (\(Id a) -> a) argsName) (params))
                 local = union parameters s
                 (ST g) = evalStmt env (BlockStmt stmts)
-                (Return val, finalState) = g local
-            in (val, union (intersection (difference finalState parameters) automaticGlob) automaticGlob)
+                (val, finalState) = g local
+            in do 
+                case val of
+                    (Return ret) ->(ret, union (intersection (difference finalState parameters) automaticGlob) automaticGlob)
+                    _ -> (val, union (intersection (difference finalState parameters) automaticGlob) automaticGlob)
 
 aux :: StateT -> Statement -> StateTransformer Value
 aux env (BlockStmt []) = return Nil
