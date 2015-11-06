@@ -14,41 +14,44 @@ evalExpr :: StateT -> Expression -> StateTransformer Value
 evalExpr env NullLit = return Nil
 evalExpr env (VarRef (Id id)) = stateLookup env id
 evalExpr env (IntLit int) = return $ Int int
-evalExpr env (ArrayLit []) = return (List [])
-evalExpr env (ArrayLit (x:xs)) = do
-    hd <- evalExpr env x
-    (List tl) <- evalExpr env (ArrayLit xs)
-    case tl of
-        [] -> return (List (hd:[]))
-        _ -> return (List ([hd]++tl))
+-- Evaluating List
+evalExpr env (ArrayLit list) = do
+    case list of
+        [] -> return (List [])
+        (x:xs) -> do
+            hd <- evalExpr env x
+            (List tl) <- evalExpr env (ArrayLit xs)
+            return (List ([hd]++tl))
+-- Evaluating negative numbers
 evalExpr env (PrefixExpr PrefixMinus expr) = do
     exprEval <- evalExpr env expr
     case exprEval of
         (Int int) -> return $ Int (-int)
-        _ -> return $ Error $ "Invalid use of prefix minus"
+        _ -> return $ Error $ "Invalid use of prefix minus."
 evalExpr env (InfixExpr op expr1 expr2) = do
     v1 <- evalExpr env expr1
     v2 <- evalExpr env expr2
     infixOp env op v1 v2
+-- Here we had to change a little bit. If stateLookup returns an error, it's because we did e.g. i = 3 without a previous declaration of i.
+-- This should work too.
 evalExpr env (AssignExpr OpAssign (LVar var) expr) = do
     v <- stateLookup env var
     case v of
-        -- Variable not defined :( we'll create it!
+        -- Variable not defined :( Don't worry, we'll create it!
         (Error _) -> do
-            evalStmt env (VarDeclStmt [(VarDecl (Id var) (Nothing))])
-            e <- evalExpr env expr
-            setVar var e
+            varDecl env (VarDecl (Id var) (Nothing))
+            exprEval <- evalExpr env expr
+            setVar var exprEval
         -- Variable defined, let's set its value
         _ -> do
             e <- evalExpr env expr
             setVar var e
+-- Evaluating pre-increment and pre-decrement.
 evalExpr env (UnaryAssignExpr inc (LVar var)) = do
-    let op = case inc of
-            (PrefixInc) -> OpAdd
-            (PrefixDec) -> OpSub
-        in
-        evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr op (VarRef (Id var)) (IntLit 1)))
--- TODO(gbg): incremento e decremento pós-fixados
+    case inc of
+        (PrefixInc) -> evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr OpAdd (VarRef (Id var)) (IntLit 1)))
+        (PrefixDec) -> evalExpr env (AssignExpr OpAssign (LVar var) (InfixExpr OpSub (VarRef (Id var)) (IntLit 1)))
+-- Evaluating function calls.
 evalExpr env (CallExpr nameExp args) = do
     res <- evalExpr env (nameExp)
     case res of
@@ -102,6 +105,7 @@ evalStmt env (VarDeclStmt []) = return Nil
 evalStmt env (VarDeclStmt (decl:ds)) =
     varDecl env decl >> evalStmt env (VarDeclStmt ds)
 evalStmt env (ExprStmt expr) = evalExpr env expr
+-- Evaluating if statement
 evalStmt env (IfSingleStmt expr ifBlock) = do
     condition <- evalExpr env expr
     case condition of
@@ -110,6 +114,7 @@ evalStmt env (IfSingleStmt expr ifBlock) = do
             return ret
              else (return Nil)
         error@(Error _) -> return error
+-- Evaluating if else statement
 evalStmt env (IfStmt expr ifBlock elseBlock) = do
     condition <- evalExpr env expr
     case condition of
@@ -119,7 +124,8 @@ evalStmt env (IfStmt expr ifBlock elseBlock) = do
          else do 
             ret <- (evalStmt env elseBlock)
             return ret
-        error@(Error _) -> return error
+        (Error _) -> return $ Error ("Condition error in if statement")
+-- Evaluating block statement
 evalStmt env (BlockStmt []) = return Nil
 evalStmt env (BlockStmt ((BreakStmt Nothing):xs)) = return Break
 evalStmt env (BlockStmt (x:xs)) = do
@@ -128,36 +134,10 @@ evalStmt env (BlockStmt (x:xs)) = do
         (Return val) -> return (Return val)
         (Break) -> return Break
         _ -> evalStmt env (BlockStmt xs)
-evalStmt env (ForStmt NoInit expr1 expr2 stmt) = do
-    let e1 = case expr1 of
-            (Just expr) -> expr
-            (Nothing) -> NullLit
-        e2 = case expr2 of
-            (Just expr) -> expr
-            (Nothing) -> NullLit
-        in do
-        condition <- evalExpr env e1
-        case condition of
-            (Bool cond) -> if (cond) then do
-                ret <- evalStmt env stmt
-                case ret of
-                    (Return val) -> return (Return val)
-                    (Break) -> return Nil
-                    _ -> do
-                        evalExpr env e2
-                        evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
-                else return Nil
-            (Nil) -> do
-                ret <- evalStmt env stmt
-                case ret of
-                    (Return val) -> return (Return val)
-                    (Break) -> return Nil
-                    _ -> do
-                        evalExpr env e2
-                        evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
-            error@(Error _) -> return error
-evalStmt env (ForStmt initt expr1 expr2 stmt) = do
-    let stmtIni = case initt of
+-- Evaluating for loops
+evalStmt env (ForStmt initialize expr1 expr2 stmt) = do
+    let stmtIni = case initialize of
+            (NoInit) -> EmptyStmt
             (VarInit listVarDecl) -> (VarDeclStmt listVarDecl)
             (ExprInit expr) -> (ExprStmt expr)
         in do
@@ -178,7 +158,7 @@ evalStmt env (ForStmt initt expr1 expr2 stmt) = do
                         (Return val) -> return (Return val)
                         _ -> do
                             evalExpr env e2
-                            evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
+                            evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
                         else return Nil
                 (Nil) -> do
                     ret <- evalStmt env stmt
@@ -187,17 +167,17 @@ evalStmt env (ForStmt initt expr1 expr2 stmt) = do
                         Break -> return Nil
                         _ -> do
                             evalExpr env e2
-                            evalStmt env (ForStmt (VarInit []) (Just e1) (Just e2) stmt)
+                            evalStmt env (ForStmt NoInit (Just e1) (Just e2) stmt)
                 error@(Error _) -> return error
--- TODO(gbg): Simplificar código do laço for
+-- Evaluating return statement
 evalStmt env (ReturnStmt expression) = do
     case expression of
         (Nothing) -> return (Return Nil)
         (Just expr) -> do
             exprEval <- evalExpr env expr
             return (Return exprEval)
+-- Evaluating function declarations
 evalStmt env (FunctionStmt name args body) = funcDecl env (name, args, body)
-
 
 
 -- Do not touch this one :)
@@ -221,6 +201,7 @@ infixOp env OpLEq  (Int  v1) (Int  v2) = return $ Bool $ v1 <= v2
 infixOp env OpGT   (Int  v1) (Int  v2) = return $ Bool $ v1 > v2
 infixOp env OpGEq  (Int  v1) (Int  v2) = return $ Bool $ v1 >= v2
 infixOp env OpEq   (Int  v1) (Int  v2) = return $ Bool $ v1 == v2
+-- Compare two lists
 infixOp env OpEq   (List []) (List []) = return $ Bool $ True
 infixOp env OpEq   (List []) (List _) = return $ Bool $ False
 infixOp env OpEq   (List _) (List []) = return $ Bool $ False
@@ -229,16 +210,18 @@ infixOp env OpEq   (List v1) (List v2) = do
     b2 <- infixOp env OpEq (List (tail v1)) (List (tail v2))
     ans <- (infixOp env OpLAnd b1 b2)
     return ans
+infixOp env OpNEq  (List list1) (List list2) = do
+    (Bool notAns) <- infixOp env OpEq  (List list1) (List list2)
+    return $ Bool $ not (notAns)
+-- end of compare lists
 infixOp env OpNEq  (Bool v1) (Bool v2) = return $ Bool $ v1 /= v2
 infixOp env OpLAnd (Bool v1) (Bool v2) = return $ Bool $ v1 && v2
 infixOp env OpLOr  (Bool v1) (Bool v2) = return $ Bool $ v1 || v2
-
 infixOp env op (Var x) v2 = do
     var <- stateLookup env x
     case var of
         error@(Error _) -> return error
         val -> infixOp env op val v2
-
 infixOp env op v1 (Var x) = do
     var <- stateLookup env x
     case var of
@@ -249,6 +232,7 @@ infixOp env op v1 (Var x) = do
 -- Environment and auxiliary functions
 --
 
+-- Iniciate environment with pre-defined functions head, tail and concat
 environment :: Map String Value
 environment = 
     insert "concat" (Function (Id "concat") [(Id "list1"), (Id "list2")] []) $ insert "tail" (Function (Id "tail") [Id "list"] []) $ insert "head" (Function (Id "head") [Id "list"] []) empty
@@ -261,12 +245,13 @@ stateLookup env var = ST $ \s ->
         (Map.lookup var (union s env)),
     s)
 
+-- Function declaration
 funcDecl :: StateT -> (Id, [Id], [Statement]) -> StateTransformer Value
-funcDecl env ((Id id), args, stmts) = do
-    setFunc id (Function (Id id) args stmts)
+funcDecl env ((Id id), args, body) = setFunc id (Function (Id id) args body)
 
 setFunc :: String -> Value -> StateTransformer Value
-setFunc name desc = ST $ \s -> (desc, insert name desc s)
+setFunc name description = ST $ \s -> (description, insert name description s)
+-- End function declaration
 
 varDecl :: StateT -> VarDecl -> StateTransformer Value
 varDecl env (VarDecl (Id id) maybeExpr) = do
