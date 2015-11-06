@@ -1,3 +1,4 @@
+// Quicksort!!!!!!!!!!!!!!!!!!!!!!!!
 function getMenores(list, pivo) {
 	if(list == []) {
 		return [];

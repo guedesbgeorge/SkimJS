@@ -1,3 +1,4 @@
+// Testando laço for sem inicialização e comando break dentro de um escopo de if.
 var i = 1;
 var a = 5;
 

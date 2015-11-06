@@ -1,3 +1,4 @@
+// Testando a função de fatorial recursiva.
 function fatorial(n) {
 	if (n == 0) {
 		return 1;

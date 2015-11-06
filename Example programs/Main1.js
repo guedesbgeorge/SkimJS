@@ -1,4 +1,5 @@
 // Esse é um comentário teste
+// Testando blocos de if e if else
 var a = 1;
 var b = 43;
 

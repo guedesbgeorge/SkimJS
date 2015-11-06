@@ -1,3 +1,4 @@
+// Função que eleva um número a outro. Testando variáveis automaticamente globais e locais.
 function power(value, power) {
 	g = "I'm a automatic global variable!";
 	var ans = 1;

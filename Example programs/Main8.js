@@ -1,3 +1,4 @@
+// Função sem retorno incrementando uma variável global.
 function incrementGlobalVariableA() {
 	++a;
 }
