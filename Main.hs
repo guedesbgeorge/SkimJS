@@ -15,6 +15,10 @@ evalExpr env NullLit = return Nil
 evalExpr env (VarRef (Id id)) = stateLookup env id
 evalExpr env (StringLit str) = return (String str)
 evalExpr env (IntLit int) = return $ Int int
+evalExpr env (ListExpr []) = return Nil
+evalExpr env (ListExpr (x:xs)) = do
+    evalExpr env x
+    evalExpr env (ListExpr xs)
 -- Evaluating List
 evalExpr env (ArrayLit list) = do
     case list of
