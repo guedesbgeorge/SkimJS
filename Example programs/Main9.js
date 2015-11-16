@@ -1,5 +1,5 @@
 // Função que eleva um número a outro. Testando variáveis automaticamente globais e locais.
-function power(value, power) {
+function pow(value, power) {
 	g = "I'm a automatic global variable!";
 	var ans = 1;
 	for(var i = power; i >= 1; --i) {
@@ -8,5 +8,5 @@ function power(value, power) {
 	return ans;
 }
 
-var a = power(2, 4);
+var a = pow(2, 4);
 a;
